@@ -635,14 +635,13 @@ async function onLLMInterpret() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pillar_json: data.value,
-        question: parsed.value.ask || '',
         style: parsed.value.style || 'professional',
       }),
     })
     const json = await res.json()
     llmLoading.value = false
     if (json.code === 200) {
-      typewriterFull = json.data?.answer || ''
+      typewriterFull = json.data?.interpretation || ''
       typewriterIdx = 0
       startTypewriter()
     } else {
