@@ -220,7 +220,7 @@ function onHourChange() {}
 onMounted(initYears)
 
 // API 基础地址
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+const API_BASE = 'https://bazi-mingli-production.up.railway.app'
 
 async function onSubmit() {
   error.value = ''
