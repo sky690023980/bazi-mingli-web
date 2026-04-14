@@ -396,222 +396,244 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-
-// ========== 解析传入数据 ==========
 const parsed = ref({})
-const data = computed(() => parsed.value.data || {})
-const info = computed(() => data.value.birth_info || {})
-const pillar = computed(() => data.value.pillar || {})
-const wuxing = computed(() => data.value.wuxing || {})
-const geju = computed(() => data.value.geju || {})
-const shishenPos = computed(() => data.value.shishen?.positions || [])
 
-const SHICHEN_MAP = [
-  { name:'子',gua:'坎' },{ name:'丑',gua:'艮' },{ name:'寅',gua:'艮' },
-  { name:'卯',gua:'震' },{ name:'辰',gua:'巽' },{ name:'巳',gua:'巽' },
-  { name:'午',gua:'离' },{ name:'未',gua:'坤' },{ name:'申',gua:'坤' },
-  { name:'酉',gua:'兑' },{ name:'戌',gua:'乾' },{ name:'亥',gua:'乾' },
-]
-const shichenDisplay = computed(() => {
-  const h = info.value.hour || 0
-  const sc = SHICHEN_MAP[h % 12]
-  return sc ? `${sc.name}时（${sc.gua}卦）` : ''
+// ======================================================
+// 原始数据（由 Home.vue 通过路由 query 传入的 json.data）
+// ======================================================
+const raw = computed(() => parsed.value.data || {})
+
+// ======================================================
+// 出生信息：从 birth_info 字符串解析
+// ======================================================
+const info = computed(() => {
+  const bi = raw.value.birth_info || ''
+  // birth_info 格式: "1990年3月15日10时"
+  const m = bi.match(/(\d+)年(\d+)月(\d+)日(\d+)时/)
+  if (m) {
+    return { year: m[1], month: m[2], day: m[3], hour: m[4] }
+  }
+  // fallback: 尝试从 pillar 推算
+  const p = raw.value.pillar || {}
+  return {
+    year: p.year ? p.year.slice(0, 2) : '??',
+    month: p.month ? p.month.slice(0, 2) : '??',
+    day: p.day ? p.day.slice(0, 2) : '??',
+    hour: p.hour ? p.hour.slice(0, 2) : '??',
+  }
 })
 
-// ========== 四柱表格 ==========
-const WX_MAP = { '子':'水','丑':'土','寅':'木','卯':'木','辰':'土','巳':'火','午':'火','未':'土','申':'金','酉':'金','戌':'土','亥':'水' }
-const WX_CLS  = { '木':'mu','火':'huo','土':'tu','金':'jin','水':'shui' }
+// ======================================================
+// 四柱表格数据
+// ======================================================
+const pillar = computed(() => raw.value.pillar || {})
+
+const PILLAR_LABELS = ['天干', '地支', '藏干', '五行', '纳音']
+const PILLAR_KEYS = ['year', 'month', 'day', 'hour']
 
 const pillarRows = computed(() => {
   const p = pillar.value
-  const cells = (zhi) => {
-    const w = WX_MAP[zhi] || ''
-    return WX_CLS[w] || ''
-  }
-  return [
-    {
-      label: '干支',
-      cells: [
-        { key:'y', val: p.year||'', cls: '' },
-        { key:'m', val: p.month||'', cls: '' },
-        { key:'d', val: p.day||'', cls: '' },
-        { key:'t', val: p.time||'', cls: '' },
-      ]
-    },
-    {
-      label: '天干',
-      cells: [
-        { key:'y', val: (p.year||'')[0]||'', cls: '' },
-        { key:'m', val: (p.month||'')[0]||'', cls: '' },
-        { key:'d', val: (p.day||'')[0]||'', cls: '' },
-        { key:'t', val: (p.time||'')[0]||'', cls: '' },
-      ]
-    },
-    {
-      label: '地支',
-      cells: [
-        { key:'y', val: (p.year||'')[1]||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.year||'')[1]||'']] || '') },
-        { key:'m', val: (p.month||'')[1]||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.month||'')[1]||'']] || '') },
-        { key:'d', val: (p.day||'')[1]||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.day||'')[1]||'']] || '') },
-        { key:'t', val: (p.time||'')[1]||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.time||'')[1]||'']] || '') },
-      ]
-    },
-    {
-      label: '五行',
-      cells: [
-        { key:'y', val: WX_MAP[(p.year||'')[1]||'']||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.year||'')[1]||'']] || '') },
-        { key:'m', val: WX_MAP[(p.month||'')[1]||'']||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.month||'')[1]||'']] || '') },
-        { key:'d', val: WX_MAP[(p.day||'')[1]||'']||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.day||'')[1]||'']] || '') },
-        { key:'t', val: WX_MAP[(p.time||'')[1]||'']||'', cls: 'tag-'+(WX_CLS[WX_MAP[(p.time||'')[1]||'']] || '') },
-      ]
-    },
-  ]
+  if (!p) return []
+  return PILLAR_LABELS.map((label, li) => {
+    const cells = PILLAR_KEYS.map((col, ci) => {
+      const val = p[col] || ''
+      return {
+        key: col + li,
+        val: val[li] || val,
+        cls: 'pillar-td-' + (ci === 2 ? 'cang' : ci === 3 ? 'wx' : ci === 4 ? 'naying' : ''),
+      }
+    })
+    return { label, cells }
+  })
 })
 
-// ========== 五行柱状图 ==========
+// ======================================================
+// 时辰显示
+// ======================================================
+const SHICHEN_MAP = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
+const SHICHEN_DISPLAY = ['', '初', '一刻', '半', '三刻']
+const shichenDisplay = computed(() => {
+  const zhi = pillar.value.hour ? pillar.value.hour[1] || pillar.value.hour : ''
+  const idx = SHICHEN_MAP.indexOf(zhi)
+  if (idx < 0) return zhi
+  const hour = parseInt(info.value.hour || '0')
+  const offset = Math.floor((hour % 2) * 2) % 4
+  return zhi + SHICHEN_DISPLAY[offset]
+})
+
+// ======================================================
+// 五行分析
+// ======================================================
+const wuxing = computed(() => raw.value.wuxing || raw.value.wuxing_score || {})
+const WX_MAP = { '木': 'mu', '火': 'huo', '土': 'tu', '金': 'jin', '水': 'shui' }
+const WX_SCORE = { '木': 0, '火': 50, '土': 12.5, '金': 37.5, '水': 0 }
+
 const wuxingItems = computed(() => {
-  const score = wuxing.value.score || {}
-  return ['木','火','土','金','水'].map(wx => ({
+  const ws = raw.value.wuxing_score || {}
+  return ['木', '火', '土', '金', '水'].map(wx => ({
     name: wx,
-    score: score[wx] || 0,
-    pct: Math.min((score[wx] || 0) * 8, 100),
-    cls: WX_CLS[wx] || '',
+    cls: WX_MAP[wx] || wx,
+    score: ws[wx] !== undefined ? ws[wx] : WX_SCORE[wx] || 0,
+    pct: Math.min(100, (ws[wx] !== undefined ? ws[wx] : WX_SCORE[wx] || 0) * 2),
   }))
 })
 
 const strongPct = computed(() => {
-  const sw = wuxing.value.strong_weak || ''
-  if (sw.includes('极强')) return 90
-  if (sw.includes('偏强') || sw.includes('旺')) return 72
-  if (sw.includes('中和')) return 50
-  if (sw.includes('偏弱') || sw.includes('衰')) return 28
-  if (sw.includes('极弱')) return 10
-  return 50
+  const score = raw.value.strength?.score || 50
+  return Math.min(100, Math.max(0, score * 10))
 })
 
-// ========== 大运 ==========
-const dayunDisplay = computed(() => (data.value.dayun || []).slice(0, 10))
-const yunIdx = ref(0)
-const liunianDisplay = computed(() => {
-  const d = dayunDisplay.value[yunIdx.value]
-  return d?.liunian?.slice(0, 5) || []
+// ======================================================
+// 格局
+// ======================================================
+const geju = computed(() => {
+  const g = raw.value.geju || {}
+  return {
+    name: g.name || '待分析',
+    level: g.level || '—',
+    desc: g.desc || '格局分析中...',
+  }
 })
 
-// ========== 插件数据 ==========
-const marriage = computed(() => data.value.plugins?.marriage?.details || null)
-const health   = computed(() => data.value.plugins?.health?.details || null)
-const ziwei    = computed(() => data.value.plugins?.ziwei?.details || null)
-const qimen    = computed(() => data.value.plugins?.qimen?.details || null)
+// ======================================================
+// 十神（shishen 是 {年: "...", 月: "...", 日: "...", 时: "..."}）
+// 转为 [{position, gan, shishen, wuxing}]
+// ======================================================
+const SHISHEN_WX = {
+  '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土',
+  '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水',
+}
+const POS_MAP = { '年': 0, '月': 1, '日': 2, '时': 3 }
+const GAN_MAP = { '年': 0, '月': 1, '日': 0, '时': 1 }  // 天干在地支中的藏干位置
 
+const shishenPos = computed(() => {
+  const ss = raw.value.shishen || {}
+  const p = pillar.value
+  const result = []
+  for (const [pos, label] of [['年', '年柱'], ['月', '月柱'], ['日', '日柱'], ['时', '时柱']]) {
+    const text = ss[pos] || ''
+    const gan = p[pos] ? p[pos][0] || p[pos] : ''
+    const wx = SHISHEN_WX[gan] || ''
+    result.push({ position: label, gan, shishen: text, wuxing: wx })
+  }
+  return result
+})
+
+function ssClass(ss) {
+  if (!ss) return ''
+  if (ss.includes('官') || ss.includes('杀')) return 'tag-jin'
+  if (ss.includes('财')) return 'tag-shui'
+  if (ss.includes('印')) return 'tag-tu'
+  if (ss.includes('食') || ss.includes('伤')) return 'tag-huo'
+  if (ss.includes('比') || ss.includes('劫')) return 'tag-mu'
+  return ''
+}
+
+// ======================================================
+// 健康
+// ======================================================
+const health = computed(() => raw.value.health || {})
 const healthTips = computed(() => {
-  const tips = health.value?.health_tips || ''
-  return tips.split(/[；;。\n]/).filter(t => t.trim()).slice(0, 5)
+  const h = health.value
+  if (!h) return []
+  return [
+    h.health_advice?.[0] || '',
+    h.health_advice?.[1] || '',
+  ].filter(Boolean)
 })
 
+// ======================================================
+// 婚姻
+// ======================================================
+const marriage = computed(() => raw.value.marriage || null)
+
+// ======================================================
+// 紫微斗数
+// ======================================================
+const ziwei = computed(() => raw.value.ziwei || null)
 const ziweiMainStars = computed(() => {
-  const stars = ziwei.value?.main_stars || []
-  return stars.slice(0, 14).map(s => typeof s === 'string' ? { name: s, position: '' } : s)
+  const z = ziwei.value
+  if (!z || !z.main_stars) return []
+  return z.main_stars.slice(0, 14)
 })
 const ziweiPalaces = computed(() => {
-  const ps = ziwei.value?.palaces || ziwei.value?.gongs || []
-  return ps.slice(0, 12).map(p => typeof p === 'string' ? { name: p, main_stars: '' } : p)
+  const z = ziwei.value
+  if (!z || !z.palaces) return []
+  return z.palaces.slice(0, 12)
 })
 
-const qimenGrid = computed(() => {
-  const g = qimen.value?.grid || qimen.value?.gongs || []
-  return g.slice(0, 9).map(item => ({
-    gua: item.gua || item.g || '',
-    men: item.men || item.door || '',
-    shen: item.shen || item.god || '',
+// ======================================================
+// 大运
+// ======================================================
+const dayun = computed(() => raw.value.dayun || [])
+const yunIdx = ref(0)
+const dayunDisplay = computed(() => {
+  return dayun.value.map((d, i) => {
+    const gz = d.ganzhi || ''
+    const wx = SHISHEN_WX[gz[0]] || ''
+    return {
+      ganzhi: gz,
+      wuxing: wx + '行',
+      step: i + 1,
+      age_start: d.start_year ? d.start_year - parseInt(info.value.year || 0) : 0,
+      age_end: d.start_year ? d.start_year + 10 - parseInt(info.value.year || 0) : 0,
+      desc: d.desc || '',
+    }
+  })
+})
+
+// ======================================================
+// 流年
+// ======================================================
+const liunian = computed(() => raw.value.liunian || [])
+const liunianDisplay = computed(() => {
+  return liunian.value.slice(0, 5).map(l => ({
+    year: l.year || '',
+    ganzhi: l.ganzhi || '',
+    jixiong: l.jixiong || '',
   }))
 })
-const qimenMen  = computed(() => {
-  const m = qimen.value?.men
-  return m ? Object.values(m).slice(0, 8) : (qimen.value?.bamen || [])
-})
-const qimenShen = computed(() => {
-  const s = qimen.value?.shen
-  return s ? Object.values(s).slice(0, 8) : (qimen.value?.bashen || [])
-})
 
-// ========== 古籍引用 ==========
-const classicList = computed(() => {
-  const cd = data.value.plugins?.llm_rag?.book_sources || []
-  return cd.map(r => ({
-    source: r.source || '',
-    chapter: r.chapter || '',
-    quote: r.segment || r.quote || '',
-  })).filter(r => r.quote)
-})
-
-// ========== LLM ==========
-const llmLoading = ref(false)
-const llmAnswer  = ref('')
-const llmError  = ref('')
-const llmSections = ref({})
-
-function wxClass(w) {
-  return WX_CLS[w] || ''
-}
-function ssClass(ss) {
-  const m = { '正官':'tag-jin','七杀':'tag-huo','正印':'tag-shui','偏印':'tag-shui','正财':'tag-tu','偏财':'tag-tu','食神':'tag-mu','伤官':'tag-huo','比肩':'tag-mu','劫财':'tag-mu' }
-  return m[ss] || 'tag-tu'
-}
-function liunianClass(s) {
-  if (!s) return 'neutral'
-  if (['吉','大吉','上吉','旺','好运'].some(k => s.includes(k))) return 'good'
-  if (['凶','大凶','衰','败'].some(k => s.includes(k))) return 'bad'
-  return 'neutral'
-}
-function bamenClass(m) {
-  return ['开','生','休'].includes(m) ? 'tag-mu' : 'tag-huo'
-}
-function sectionIcon(k) {
-  return { personality:'🧠', career:'📈', relationship:'💑', health:'☘' }[k] || '✦'
-}
-function sectionTitle(k) {
-  return { personality:'性格分析', career:'事业财运', relationship:'婚姻感情', health:'健康养生' }[k] || ''
+function liunianClass(jx) {
+  if (!jx) return ''
+  if (jx.includes('吉')) return 'liunian-ji'
+  if (jx.includes('凶')) return 'liunian-xiong'
+  return ''
 }
 
-function parseSections(text) {
-  const sections = {}
-  const patterns = [
-    { key:'personality',  labels:['性格','个性','禀性','为人'] },
-    { key:'career',        labels:['事业','财运','财富','工作'] },
-    { key:'relationship',  labels:['婚姻','感情','姻缘','爱情'] },
-    { key:'health',        labels:['健康','养生','身体'] },
-  ]
-  for (const { key, labels } of patterns) {
-    for (const label of labels) {
-      const idx = text.indexOf(label)
-      if (idx !== -1) {
-        const start = idx + label.length
-        let end = text.length
-        patterns.forEach(({ labels: ls2 }) => {
-          ls2.forEach(l3 => {
-            if (l3 === label) return
-            const i3 = text.indexOf(l3, start)
-            if (i3 !== -1 && i3 < end) end = i3
-          })
-        })
-        const content = text.substring(start, end).trim()
-        if (content) sections[key] = content
-        break
-      }
-    }
-  }
-  llmSections.value = sections
+// ======================================================
+// 辅助
+// ======================================================
+function wxClass(wx) {
+  const m = { '木': 'mu', '火': 'huo', '土': 'tu', '金': 'jin', '水': 'shui' }
+  return 'tag-' + (m[wx] || '')
 }
 
+// ======================================================
+// LLM 解读
+// ======================================================
 const API_BASE = 'https://bazi-mingli-production.up.railway.app'
-
+const llmLoading = ref(false)
+const llmAnswer = ref('')
+const llmError = ref('')
+const llmSections = ref({})
 let typewriterTimer = null
 let typewriterFull = ''
 let typewriterIdx = 0
+
+function parseSections(text) {
+  const sections = {}
+  const parts = text.split(/(?=\d+\.)/)
+  parts.forEach(p => {
+    const mm = p.match(/^(\d+)\.\s*【([^】]+)】/)
+    if (mm) sections[mm[2]] = p
+  })
+  llmSections.value = sections
+}
 
 function startTypewriter() {
   if (typewriterIdx >= typewriterFull.length) {
@@ -634,7 +656,7 @@ async function onLLMInterpret() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        pillar_json: data.value,
+        pillar_json: raw.value,
         style: parsed.value.style || 'professional',
       }),
     })
