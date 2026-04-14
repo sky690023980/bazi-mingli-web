@@ -607,7 +607,7 @@ function parseSections(text) {
   llmSections.value = sections
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+const API_BASE = 'https://bazi-mingli-production.up.railway.app'
 
 let typewriterTimer = null
 let typewriterFull = ''
